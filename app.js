@@ -1,12 +1,23 @@
 "use strict";
 
-const app = require('./server.js');
+// IMPORTS 
+// Express
+const express = require('express');
+const app = express();
+// Cors
+const cors = require('cors');
+// Helmet 
+const helmet = require('helmet');
 
-const PORT = process.env.PORT || 3001;
 
-app.listen(PORT, () => {
-  consol.log('Server up !');
+// CONFIG 
+// Helmet
+app.use(helmet());
+// cors
+app.use(cors());
 
-});
+app.get('/', (req, res) => {
+  res.send('Hello World!')
+})
 
-
+module.exports = app;

@@ -1,21 +1,18 @@
 "use strict";
 
-// Imports 
-const express = require('express');
-const app = express();
-
-const cors = require('cors');
-
-
-// CONFIG 
-// Express body parser
-app.use(express.json);
-app.use(express.urlencoded({ extended: true }));
-
-// cors
-app.use(cors());
+// IMPORTS
+// Socket IO
+const { createServer } = require("http");
+const createSocket = require("./socketio.js");
+//App.js
+const app = require("./app.js");
 
 
-module.exports = app;
+const PORT = process.env.PORT || 3001;
+const http = createServer(app);
 
+createSocket(http);
 
+http.listen(PORT, () => {
+  console.log(`Server up ! ${PORT}`);
+});
