@@ -1,119 +1,91 @@
-const client = require("../infra/redis");
-
 const SocketEvents = require("../constants/socketEvents");
 
-const { RoomModel } = require('../models/index');
+const { RoomModel } = require("../models/index");
 
-// exports.createRoom = async (namespaceId, socketId, username, io) => {
-//   try {
-//     let activeUsers = [];
+exports.joinRoom = async (namespaceId, socketId, username, io, socket) => {
+  try {
+    let room = await RoomModel.findOne({ namespaceId: namespaceId });
 
-//     await exports.joinRoom(namespaceId, socketId, username);
+    if (!room) console.log("room not found");
 
-//     await exports.activeUserOnNamespace(namespaceId, (users) => {
-//       activeUsers = users;
+    let new_user = { username: username, socketId: socketId, isHost: false };
 
-//       io.of(namespaceId).emit(SocketEvents.SERVER_UPDATE_ROOM, { activeUsers });
-//     });
-//   } catch (e) {
-//     console.log(e);
-//   }
-// }
+    room.users.push(new_user);
+    room = await room.save();
 
-exports.joinRoom = async (namespaceId, socketId, username, io) => {
-  // await client.createConnection().then((client) => {
+    let users = room.users;
+    let userId = users[users.length - 1]._id;
 
-  //   client.hmset(namespaceId, username, socketId );
+    io.of(namespaceId).emit(SocketEvents.SERVER_UPDATE_ROOM, { room });
 
-  // });
+    io.of(namespaceId).to(socketId).emit(SocketEvents.SERVER_UPDATE_USER, {
+      userId: userId,
+      socketId: socketId,
+      username: username,
+      isHost: false,
+    });
 
-  await RoomModel.findOneAndUpdate({ namespaceId }, {users: {username, socketId, isHost: false}});
-
-  await RoomModel.find({ namespaceId }, (err, rooms) => {
-    console.log(rooms);
-  })
-
-  io.of(namespaceId).emit(SocketEvents.SERVER_UPDATE_ROOM, { activeUsers });
-}
-
-exports.createRoom = async (namespaceId, socketId, username) => {
-  // await client.createConnection().then((client) => {
-
-  //   client.hmset(namespaceId, username, socketId );
-
-  // });
-
-  let new_room = new RoomModel({namespaceId, users: { username, socketId, isHost: true }});
-
-  await new_room.save().then(user => {
-    console.log(user);
-  }).catch(e => {
+    // socket.join(namespaceId);
+  } catch (e) {
     console.log(e);
-  })
-
-}
-
-exports.checkForExistingNamespace = async (namespaceId, cb) => {
-  let concat = "/" + namespaceId;
-
-  await client.createConnection().then((client) => {
-    let exists;
-    // Check if the namespace id exists
-    client.exists(concat, (err, reply) => {
-
-      if (reply === 1) exists = true;
-      else exists = false;
-
-      return cb(exists);
-    });
-  });
+  }
 };
 
-exports.checkForExistingUsername = async (namespaceId, username, cb) => {
-  let exists;
-
-  let concat = '/' + namespaceId;
-
-  await client.createConnection().then((client) => {
-    client.hexists(concat, username, (err, reply) => {
-
-      if (reply === 1) exists = true;
-      else exists = false;
-
-      return cb(exists);
+exports.createRoom = async (namespaceId, socketId, username, io, socket) => {
+  try {
+    let new_room = new RoomModel({
+      namespaceId: namespaceId,
+      users: { username: username, socketId: socketId, isHost: true },
     });
-  });
+
+    await new_room.save()
+      .then((room) => {
+        return room;
+      })
+      .catch((e) => {
+        console.log(e);
+      });
+
+    let userId = new_room.users[0]._id;
+
+    io.of(namespaceId).to(socketId).emit(SocketEvents.SERVER_UPDATE_USER, {
+      userId: userId,
+      socketId: socketId,
+      username: username,
+      isHost: true,
+    });
+
+    // socket.join(namespaceId);
+  } catch (e) {
+    console.log(e);
+  }
 };
 
-exports.activeUserOnNamespace = async (namespaceId, cb) => {
+exports.checkForExistingRoom = async (namespaceId) => {
+  try {
+    let room = await RoomModel.find({
+      namespaceId: "/" + namespaceId.toString(),
+    });
 
-  let activeClients = [];
-  await client.createConnection().then((client) => {
+    return room;
+  } catch (e) {
+    console.log(e);
+  }
+};
 
-    client.hkeys(namespaceId,  (err, value) => {
-      activeClients = value;
+exports.checkForExistingUsername = async (namespaceId, username) => {
+  try {
+    let user = await RoomModel.find({
+      namespaceId: "/" + namespaceId.toString(),
+      "users.username": username,
+    });
 
-      cb(activeClients);
-    })
-  })
+    return user;
+  } catch (e) {
+    console.log(e);
+  }
+};
 
-}
 
-exports.updateUserSocketID = async (namespaceId, socketId, username) => {
 
-  await client.createConnection().then(async (client) => {
-    // Check if there is only one value in the room
-    await client.hlen(namespaceId, async (err, value) => {
-      
-      if(value === 1){
-        // get the username for the creator of the room
-        await client.hkeys(namespaceId, (err, value) => {
-          client.hset(namespaceId, value[0], socketId);
-        })
-      }
-    })
 
-    // client.hset(namespaceId, username, socketId);
-  });
-
-}

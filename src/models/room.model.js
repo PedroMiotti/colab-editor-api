@@ -1,6 +1,6 @@
-const { Schema, model } = require('mongoose')
+const mongoose = require('../infra/mongo');
 
-var roomSchema = new Schema({
+let roomSchema = new mongoose.Schema({
     namespaceId: {
         type: String,
         required: true
@@ -22,9 +22,9 @@ var roomSchema = new Schema({
         type: Date, 
         default: Date.now 
     },
-})
+});
 
 
-const Room = model('Room', roomSchema);
+const Room = mongoose.model('Room', roomSchema);
 
 module.exports = Room;

@@ -8,16 +8,26 @@ const app = express();
 const cors = require("cors");
 // Helmet
 const helmet = require("helmet");
+// Body-parser
+const bodyParser = require('body-parser')
+//Routes
+const RoomRoute = require('./routes/api/room.js');
+const FileRoute = require('./routes/api/file.js');
 
-const Room = require('./routes/api/room.js');
 
 // CONFIG
 // Helmet
 app.use(helmet());
 // cors
 app.use(cors());
+// Body-Parse
+app.use(bodyParser.urlencoded({ extended: false }))
+app.use(bodyParser.json())
 
-app.use('/api/v1/room', Room);
+// ROUTES
+app.use('/api/v1/room', RoomRoute);
+app.use('/api/v1/file', FileRoute);
+
 
 
 module.exports = app;

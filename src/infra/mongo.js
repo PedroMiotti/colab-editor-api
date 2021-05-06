@@ -2,17 +2,11 @@ const mongoose = require("mongoose");
 
 require('dotenv').config();
 
-mongoose.connect(`mongodb://${MONGO_URI}/${MONGO_DB_NAME}`,{
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-    useFindAndModify: false,
-    useCreateIndex: true
-    })
+mongoose.connect(`mongodb://localhost/colabeditor`, { useNewUrlParser: true, useUnifiedTopology: true, useFindAndModify: false });
 
-    .then(() => {
-        console.log('Mongo Ok!');
-    })
+mongoose.Promise = global.Promise;
 
-    .catch(err => {
-        console.log('Failed to connect to Mongo', err);
-});
+module.exports = mongoose;
+
+
+//`mongodb://${process.env.MONGO_URI}/${process.env.MONGO_NAME}`

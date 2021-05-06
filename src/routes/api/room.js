@@ -8,19 +8,27 @@ router.get("/join/:nspId/:username", async (req, res) => {
   let namespaceId = req.params.nspId;
   let username = req.params.username;
 
-  await RoomService.checkForExistingNamespace(namespaceId, async (result) => {
+  try{
+    let room_exists = await RoomService.checkForExistingRoom(namespaceId);
 
-    if (result === false) return res.status(400).send("Essa sala não existe");
+    let username_exists = await RoomService.checkForExistingUsername(username);
 
-    await RoomService.checkForExistingUsername(namespaceId, username, (result) => {
-      if (result === true)
-        return res.status(400).send("Esse username já está em uso");
+    if(!room_exists){
+      return res.status(400).send("Essa sala não existe")
+    }
 
-      return res.status(201).send("ok");
-    });
+    if(!username_exists){
+      return res.status(400).send("Esse nome de usuario já está em uso nessa sala");
+    }
 
-  });
+    return res.status(200).send("Usuario entrou na sala !");
 
+  }
+  catch(e){
+    return res.status(400).send("Erro :" + e);
+  }
 });
+
+
 
 module.exports = router;
