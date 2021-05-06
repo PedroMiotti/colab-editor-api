@@ -1,19 +1,58 @@
 const client = require("../infra/redis");
 
-/*
- * @param namespaceId: string - Namespace Id
- * @param socketId: string - The user who created the nsp
- */
-exports.createOrJoinRoom = async (namespaceId, socketId, username) => {
-  console.log(namespaceId)
-  await client.createConnection().then((client) => {
-    client.hmset(namespaceId, username, socketId );
-  });
-};
+const SocketEvents = require("../constants/socketEvents");
 
-/*
- * @param namespaceId: string - Namespace Id
- */
+const { RoomModel } = require('../models/index');
+
+// exports.createRoom = async (namespaceId, socketId, username, io) => {
+//   try {
+//     let activeUsers = [];
+
+//     await exports.joinRoom(namespaceId, socketId, username);
+
+//     await exports.activeUserOnNamespace(namespaceId, (users) => {
+//       activeUsers = users;
+
+//       io.of(namespaceId).emit(SocketEvents.SERVER_UPDATE_ROOM, { activeUsers });
+//     });
+//   } catch (e) {
+//     console.log(e);
+//   }
+// }
+
+exports.joinRoom = async (namespaceId, socketId, username, io) => {
+  // await client.createConnection().then((client) => {
+
+  //   client.hmset(namespaceId, username, socketId );
+
+  // });
+
+  await RoomModel.findOneAndUpdate({ namespaceId }, {users: {username, socketId, isHost: false}});
+
+  await RoomModel.find({ namespaceId }, (err, rooms) => {
+    console.log(rooms);
+  })
+
+  io.of(namespaceId).emit(SocketEvents.SERVER_UPDATE_ROOM, { activeUsers });
+}
+
+exports.createRoom = async (namespaceId, socketId, username) => {
+  // await client.createConnection().then((client) => {
+
+  //   client.hmset(namespaceId, username, socketId );
+
+  // });
+
+  let new_room = new RoomModel({namespaceId, users: { username, socketId, isHost: true }});
+
+  await new_room.save().then(user => {
+    console.log(user);
+  }).catch(e => {
+    console.log(e);
+  })
+
+}
+
 exports.checkForExistingNamespace = async (namespaceId, cb) => {
   let concat = "/" + namespaceId;
 

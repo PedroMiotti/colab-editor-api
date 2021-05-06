@@ -1,18 +1,13 @@
 // Socket IO
 const socketio = require("socket.io");
 
-const ioEvents = require("../constants/socketEvents.js");
+const SocketEvents = require("./constants/socketEvents");
 
-const {
-  createOrJoinRoom,
-  checkForExistingNamespace,
-  updateUserSocketID,
-  activeUserOnNamespace,
-} = require("./services/user.service.js");
+const RoomService = require("./services/room.service");
 
 module.exports = (http) => {
-  // Allowing CORS - Aparentely it doenst get recognize it by express
-  // ref - https://stackoverflow.com/questions/35713682/socket-io-gives-cors-error-even-if-i-allowed-cors-it-on-server
+  // Allowing CORS - Aparently it doenst get recognize it by express
+  // REF - https://stackoverflow.com/questions/35713682/socket-io-gives-cors-error-even-if-i-allowed-cors-it-on-server
   const options = {
     cors: true,
     origins: ["*"],
@@ -22,43 +17,17 @@ module.exports = (http) => {
 
   const namespaces = io.of(/^\/[a-zA-Z0-9_\/-]+$/);
 
-  namespaces.on(ioEvents.CONNECT, (socket) => {
+  namespaces.on(SocketEvents.CONNECT, (socket) => {
     const namespace = socket.nsp;
-    const namespaceDir = namespace.name;
+    const namespace_name = namespace.name;
 
-    let activeUsers = [];
+    socket.on(SocketEvents.CLIENT_CREATE_ROOM, async (data) => { await RoomService.createRoom(namespace_name, socket.id, data, io) });
 
-    socket.on("create:room", async (data) => {
-      try{
+    socket.on(SocketEvents.CLIENT_JOIN_ROOM, async (data) => { await RoomService.joinRoom(namespace_name, socket.id, data) });
 
-        await createOrJoinRoom(namespaceDir, socket.id, data);
-        
-        await activeUserOnNamespace(namespaceDir, (users) => {
-          activeUsers = users;
+    console.log("connected " + socket.id + " On namespace: " + namespace_name);
 
-          io.of(namespaceDir).emit("update:room", { activeUsers })
-        });
-
-
-      }
-      catch(e){
-        console.log(e)
-      }
-
-
-    });
-
-    socket.on("join:room", (data) => {
-      createOrJoinRoom(namespaceDir, socket.id, data);
-    });
-
-    console.log("connected " + socket.id + " On namespace: " + namespaceDir);
-
-    socket.on(ioEvents.DISCONNECT, (data) => {
-      console.log(
-        "Socket disconnected " + socket.id + " On namespace: " + namespaceDir
-      );
-    });
+    socket.on(SocketEvents.DISCONNECT, (data) => { console.log("Socket disconnected " + socket.id + " On namespace: " + namespace_name ) });
   });
 
   return io;
