@@ -22,6 +22,7 @@ module.exports = (http) => {
   namespaces.on(SocketEvents.CONNECT, (socket) => {
     const namespace = socket.nsp;
     const namespace_id = namespace.name;
+
     console.log("connected " + socket.id + " On namespace: " + namespace_id);
 
     socket.on(SocketEvents.CLIENT_CREATE_ROOM, async (data) => { await RoomService.createRoom(namespace_id, socket.id, data, io, socket) });
@@ -29,6 +30,10 @@ module.exports = (http) => {
     socket.on(SocketEvents.CLIENT_JOIN_ROOM, async (data) => { await RoomService.joinRoom(namespace_id, socket.id, data, io, socket) });
 
     socket.on(SocketEvents.CLIENT_CREATE_FILE, async (data) => { await FileService.createFile(data, namespace_id, io ) });
+
+    socket.on(SocketEvents.CLIENT_JOIN_FILE, async (data) => { await FileService.joinFile(data.prevFile, data.currentFile, namespace_id, socket.id, socket, io ) });
+
+    socket.on(SocketEvents.CLIENT_UPDATE_CODE, async (data) => { await FileService.updateCode(data.filename, data.code, socket.id, namespace_id, socket, io ) });
 
     socket.on(SocketEvents.DISCONNECT, (data) => { console.log("Socket disconnected " + socket.id + " On namespace: " + namespace_id ) });
   });

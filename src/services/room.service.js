@@ -25,7 +25,6 @@ exports.joinRoom = async (namespaceId, socketId, username, io, socket) => {
       isHost: false,
     });
 
-    // socket.join(namespaceId);
   } catch (e) {
     console.log(e);
   }
@@ -55,7 +54,6 @@ exports.createRoom = async (namespaceId, socketId, username, io, socket) => {
       isHost: true,
     });
 
-    // socket.join(namespaceId);
   } catch (e) {
     console.log(e);
   }
@@ -68,6 +66,7 @@ exports.checkForExistingRoom = async (namespaceId) => {
     });
 
     return room;
+
   } catch (e) {
     console.log(e);
   }
@@ -81,6 +80,7 @@ exports.checkForExistingUsername = async (namespaceId, username) => {
     });
 
     return user;
+
   } catch (e) {
     console.log(e);
   }
