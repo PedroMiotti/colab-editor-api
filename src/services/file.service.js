@@ -2,6 +2,10 @@ const SocketEvents = require("../constants/socketEvents");
 
 const { RoomModel } = require("../models/index");
 
+const automerge = require("automerge");
+
+const DEFAULT_PROGRAM = "// Insert code here";
+
 exports.createFile = async (fileName, namespaceId, io) => {
   try {
     if (!fileName || !namespaceId)
@@ -11,7 +15,13 @@ exports.createFile = async (fileName, namespaceId, io) => {
 
     if (!room) console.log("Sala nao existe");
 
-    let new_file = { filename: fileName, text: "" };
+    let doc = automerge.init();
+    doc = automerge.change(doc, docRef => {
+        docRef.content = new automerge.Text();
+        docRef.content.insertAt(0, ...DEFAULT_PROGRAM.split(""));
+      });
+
+    let new_file = { filename: fileName, text: JSON.stringify(automerge.save(doc)) };
 
     room.files.push(new_file);
     room = await room.save();
@@ -19,6 +29,7 @@ exports.createFile = async (fileName, namespaceId, io) => {
     io.of(namespaceId).emit(SocketEvents.SERVER_UPDATE_FILES, {
       files: room.files,
     });
+
   } catch (e) {
     console.log(e);
   }
@@ -38,6 +49,11 @@ exports.joinFile = async (
 
     let room = await RoomModel.findOne({ namespaceId: namespaceId });
 
+    let file = await RoomModel.find({
+      namespaceId: namespaceId,
+      "files.filename": currentFile,
+    });
+
     if (!room) console.log("Sala nao existe");
 
     let socket_rooms = io.of(namespaceId).adapter.rooms;
@@ -48,33 +64,88 @@ exports.joinFile = async (
       }
     }
 
-    io.of(namespaceId).to(currentFile).emit(SocketEvents.SERVER_USER_JOINED_FILE, 'message', (fileContent) => {
-      console.log(fileContent)
-    });
-
     socket.join(currentFile);
+
+    io.of(namespaceId).to(currentFile).emit(SocketEvents.SERVER_USER_JOINED_FILE, file[0].files[0].text);
+
   } catch (e) {
     console.log(e);
   }
 };
 
 exports.updateCode = async (
-  fileName,
-  code,
+  data,
   socketId,
   namespaceId,
   socket,
   io
 ) => {
   try {
-    if (!fileName || !namespaceId)
+
+    const { filename, startIdx, changeLength, changes } = data;
+
+    if (!filename || !namespaceId)
       console.log("Nome do arquivo e a sala sao obrigatorios !");
 
-    io.of(namespaceId).to(fileName).emit(SocketEvents.SERVER_UPDATE_CODE, {
-      value: code,
-      socketId: socketId,
+    let room = await RoomModel.find({
+      namespaceId: namespaceId,
+      "files.filename": filename,
     });
+
+    const parsedCode = JSON.parse(room[0].files[0].text);
+    const codeParsedValues = Object.values(parsedCode);
+    const newCodeArr = new Uint8Array(codeParsedValues);
+    
+    let loadFile = automerge.load(newCodeArr);
+    
+    const changesArray = [];
+    const parsedChanges = JSON.parse(changes); 
+    const changesParsedValues = Object.values(parsedChanges[0]);
+    const newChangesArr = new Uint8Array(changesParsedValues);
+    changesArray.push(newChangesArr)
+    
+    loadFile = automerge.applyChanges(loadFile, changesArray);
+
+    // console.log(automerge.save(loadFile))
+    const savedChanges = JSON.stringify(automerge.save(loadFile[0]));
+
+    let updateFileText = await RoomModel.findOneAndUpdate({
+      namespaceId: namespaceId,
+      "files.filename": filename,
+    }, {text: savedChanges} );
+
+    await updateFileText.save();
+
+    io.of(namespaceId).to(filename).except(socketId).emit(SocketEvents.SERVER_UPDATE_CODE, {
+      changes: JSON.stringify(changes), 
+      startIdx,
+      changeLength
+    });
+
   } catch (e) {
     console.log(e);
   }
 };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
