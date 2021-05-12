@@ -103,16 +103,20 @@ exports.updateCode = async (
     const changesParsedValues = Object.values(parsedChanges[0]);
     const newChangesArr = new Uint8Array(changesParsedValues);
     changesArray.push(newChangesArr)
+
+    // Testing -- Why is returning empty object ? Shoudnt return a object with changes ?
+    let loadFile1 = automerge.load(newChangesArr);
+    console.log(loadFile1) 
     
     loadFile = automerge.applyChanges(loadFile, changesArray);
-
-    // console.log(automerge.save(loadFile))
-    const savedChanges = JSON.stringify(automerge.save(loadFile[0]));
+    
+    const savedChanges = automerge.save(loadFile[0]);
+    
 
     let updateFileText = await RoomModel.findOneAndUpdate({
       namespaceId: namespaceId,
       "files.filename": filename,
-    }, {text: savedChanges} );
+    }, { text: savedChanges } );
 
     await updateFileText.save();
 
