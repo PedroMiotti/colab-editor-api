@@ -8,6 +8,7 @@ let roomSchema = new mongoose.Schema({
     files: [{
         filename: String ,
         text: String ,
+        userCount: Number,
     }],
     users: [{
         username: String ,

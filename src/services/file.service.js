@@ -2,7 +2,7 @@ const SocketEvents = require("../constants/socketEvents");
 
 const { RoomModel } = require("../models/index");
 
-const redisClient = require('../infra/redis');
+const redisClient = require("../infra/redis");
 
 const automerge = require("automerge");
 
@@ -18,13 +18,15 @@ exports.createFile = async (fileName, namespaceId, io) => {
     if (!room) console.log("Sala nao existe");
 
     let doc = automerge.init();
-    doc = automerge.change(doc, docRef => {
-        docRef.content = new automerge.Text();
-        docRef.content.insertAt(0, ...DEFAULT_PROGRAM.split(""));
-      });
+    doc = automerge.change(doc, (docRef) => {
+      docRef.content = new automerge.Text();
+      docRef.content.insertAt(0, ...DEFAULT_PROGRAM.split(""));
+    });
 
-
-    let new_file = { filename: fileName, text: JSON.stringify(automerge.save(doc)) };
+    let new_file = {
+      filename: fileName,
+      text: JSON.stringify(automerge.save(doc)),
+    };
 
     room.files.push(new_file);
     room = await room.save();
@@ -32,47 +34,58 @@ exports.createFile = async (fileName, namespaceId, io) => {
     io.of(namespaceId).emit(SocketEvents.SERVER_UPDATE_FILES, {
       files: room.files,
     });
-
   } catch (e) {
     console.log(e);
   }
 };
 
-exports.joinFile = async (
-  prevFile,
-  currentFile,
-  namespaceId,
-  socketId,
-  socket,
-  io
-) => {
+exports.joinFile = async (prevFile, currentFile, namespaceId, socketId, socket, io) => {
   try {
     if (!currentFile || !namespaceId)
       console.log("Nome do arquivo e a sala sao obrigatorios !");
 
-    let room = await RoomModel.findOne({ namespaceId: namespaceId });
+    let storedFileText = '';
 
-    // Get the content of the file from Mongo
-    let getFileText = await RoomModel.findOne({ namespaceId: namespaceId }).then(doc => {
-      let fileIdx = doc.files.map(file => file.filename).indexOf(currentFile);
-      let fileText = doc.files[fileIdx].text; // min 10984 bytes
+    // Check if the file is already open on redis
+    let documentTextInMemory = await getFileInMemory(namespaceId, currentFile).then((doc) => {
+      if (doc) return doc;
 
-      return fileText;
+      else return null;
     }).catch(err => {
-      console.log(err)
-      return;
-    });
+      console.log(err);
+    })
 
+    if (documentTextInMemory) {
+      storedFileText = documentTextInMemory;
 
-    // Inserting the file into redis
-    await redisClient.createConnection().then((client) => {
-      client.hset(namespaceId, currentFile, getFileText );
-    });
+    } else {
+      // Get the content of the file from Mongo
+      let getStoredFileText = await RoomModel.findOne({ namespaceId: namespaceId }).then((doc) => {
+        let fileIdx = doc.files.map((file) => file.filename).indexOf(currentFile);
+        let fileText = doc.files[fileIdx].text; // min 10984 bytes
 
-    if (!room) console.log("Sala nao existe");
+        return fileText;
 
-    let socket_rooms = io.of(namespaceId).adapter.rooms;
+      }).catch((err) => {
+        console.log(err);
+        return;
+      });
+
+      // Inserting the file into redis
+      await redisClient.createConnection().then((client) => {
+
+        client.hset(namespaceId, currentFile, getStoredFileText);
+
+      }).catch((err) => {
+        console.log(err);
+        return;
+      });
+
+      storedFileText = getStoredFileText;
+    }
+
     // Check if user is already inside a room that is not the socket default.
+    let socket_rooms = io.of(namespaceId).adapter.rooms;
     for (let [key, value] of socket_rooms) {
       if (key !== socketId && value.has(socketId)) {
         socket.leave(prevFile);
@@ -81,22 +94,15 @@ exports.joinFile = async (
 
     socket.join(currentFile);
 
-    io.of(namespaceId).to(currentFile).emit(SocketEvents.SERVER_USER_JOINED_FILE, getFileText);
+    io.of(namespaceId).to(currentFile).emit(SocketEvents.SERVER_USER_JOINED_FILE, storedFileText);
 
   } catch (e) {
     console.log(e);
   }
 };
 
-exports.updateCode = async (
-  data,
-  socketId,
-  namespaceId,
-  socket,
-  io
-) => {
+exports.updateCode = async (data, socketId, namespaceId, socket, io) => {
   try {
-
     const { filename, startIdx, changeLength, changes } = data;
 
     if (!filename || !namespaceId)
@@ -104,59 +110,53 @@ exports.updateCode = async (
 
     await redisClient.createConnection().then(async (client) => {
       await client.hget(namespaceId, filename, async (err, doc) => {
-          const parsedCode = JSON.parse(doc);
-          
-          let loadFile = automerge.load(parsedCode);
-          
-          const parsedChanges = JSON.parse(changes); 
-          
-          let changesApplied = automerge.applyChanges(loadFile, parsedChanges);
-          
-          const savedChanges = automerge.save(changesApplied);
-          console.log(savedChanges.current.toString())
-          
-          // let updateFileText = await RoomModel.findOne({ namespaceId: namespaceId }).then(doc => {
-          //   let fileIdx = doc.files.map(file => file.filename).indexOf(filename);
-          //   doc.files[fileIdx].text = JSON.stringify(savedChanges);
-          //   doc.save();
-          // }).catch(err => {
-          //   console.log(err)
-          // });
+        if (err) console.log(err);
 
-          client.hset(namespaceId, filename, JSON.stringify(savedChanges) );
-          
-          io.of(namespaceId).to(filename).except(socketId).emit(SocketEvents.SERVER_UPDATE_CODE, {
-            changes: JSON.stringify(changes), // TODO -> Remove .stringfy and in client remove douple .parse
-            startIdx,
-            changeLength
-          });
+        const parsedCode = JSON.parse(doc);
+
+        let loadFile = automerge.load(parsedCode);
+
+        const parsedChanges = JSON.parse(changes);
+
+        let changesApplied = automerge.applyChanges(loadFile, parsedChanges);
+
+        const savedChanges = automerge.save(changesApplied);
+
+        client.hset(namespaceId, filename, JSON.stringify(savedChanges));
+
+        io.of(namespaceId).to(filename).except(socketId).emit(SocketEvents.SERVER_UPDATE_CODE, {
+          changes: JSON.stringify(changes), // TODO -> Remove .stringfy and in client remove douple .parse
+          startIdx,
+          changeLength,
+        });
       });
-    });
-
+    })
+      .catch((err) => {
+        console.log(err);
+      });
   } catch (e) {
     console.log(e);
   }
 };
 
 
+const getFileInMemory = (namespaceId, filename) => {
+  let documentText = " ";
 
+  return new Promise(async (resolve, reject) => {
+    await redisClient.createConnection().then(async (client) => {
+      await client.hget(namespaceId, filename, (err, doc) => {
+        if (err) reject(err);
 
+        documentText = doc;
 
+        resolve(documentText);
+      });
+    }).catch((err) => {
+      reject(err);
+    })
 
+  })
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+}
 
