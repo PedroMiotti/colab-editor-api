@@ -2,6 +2,8 @@ const mongoose = require("mongoose");
 
 require('dotenv').config();
 
+// TODO -> Use env variables
+
 mongoose.connect(`mongodb://localhost/colabeditor`, { useNewUrlParser: true, useUnifiedTopology: true, useFindAndModify: false });
 
 mongoose.Promise = global.Promise;

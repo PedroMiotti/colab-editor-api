@@ -2,6 +2,8 @@ const SocketEvents = require("../constants/socketEvents");
 
 const { RoomModel } = require("../models/index");
 
+const redisClient = require('../infra/redis');
+
 const automerge = require("automerge");
 
 const DEFAULT_PROGRAM = "// Insert code here";
@@ -20,6 +22,7 @@ exports.createFile = async (fileName, namespaceId, io) => {
         docRef.content = new automerge.Text();
         docRef.content.insertAt(0, ...DEFAULT_PROGRAM.split(""));
       });
+
 
     let new_file = { filename: fileName, text: JSON.stringify(automerge.save(doc)) };
 
@@ -49,15 +52,27 @@ exports.joinFile = async (
 
     let room = await RoomModel.findOne({ namespaceId: namespaceId });
 
-    let file = await RoomModel.find({
-      namespaceId: namespaceId,
-      "files.filename": currentFile,
+    // Get the content of the file from Mongo
+    let getFileText = await RoomModel.findOne({ namespaceId: namespaceId }).then(doc => {
+      let fileIdx = doc.files.map(file => file.filename).indexOf(currentFile);
+      let fileText = doc.files[fileIdx].text; // min 10984 bytes
+
+      return fileText;
+    }).catch(err => {
+      console.log(err)
+      return;
+    });
+
+
+    // Inserting the file into redis
+    await redisClient.createConnection().then((client) => {
+      client.hset(namespaceId, currentFile, getFileText );
     });
 
     if (!room) console.log("Sala nao existe");
 
     let socket_rooms = io.of(namespaceId).adapter.rooms;
-    // Check if user is already inside a room that is not the default.
+    // Check if user is already inside a room that is not the socket default.
     for (let [key, value] of socket_rooms) {
       if (key !== socketId && value.has(socketId)) {
         socket.leave(prevFile);
@@ -66,7 +81,7 @@ exports.joinFile = async (
 
     socket.join(currentFile);
 
-    io.of(namespaceId).to(currentFile).emit(SocketEvents.SERVER_USER_JOINED_FILE, file[0].files[0].text);
+    io.of(namespaceId).to(currentFile).emit(SocketEvents.SERVER_USER_JOINED_FILE, getFileText);
 
   } catch (e) {
     console.log(e);
@@ -87,43 +102,35 @@ exports.updateCode = async (
     if (!filename || !namespaceId)
       console.log("Nome do arquivo e a sala sao obrigatorios !");
 
-    let room = await RoomModel.find({
-      namespaceId: namespaceId,
-      "files.filename": filename,
-    });
+    await redisClient.createConnection().then(async (client) => {
+      await client.hget(namespaceId, filename, async (err, doc) => {
+          const parsedCode = JSON.parse(doc);
+          
+          let loadFile = automerge.load(parsedCode);
+          
+          const parsedChanges = JSON.parse(changes); 
+          
+          let changesApplied = automerge.applyChanges(loadFile, parsedChanges);
+          
+          const savedChanges = automerge.save(changesApplied);
+          console.log(savedChanges.current.toString())
+          
+          // let updateFileText = await RoomModel.findOne({ namespaceId: namespaceId }).then(doc => {
+          //   let fileIdx = doc.files.map(file => file.filename).indexOf(filename);
+          //   doc.files[fileIdx].text = JSON.stringify(savedChanges);
+          //   doc.save();
+          // }).catch(err => {
+          //   console.log(err)
+          // });
 
-    const parsedCode = JSON.parse(room[0].files[0].text);
-    const codeParsedValues = Object.values(parsedCode);
-    const newCodeArr = new Uint8Array(codeParsedValues);
-    
-    let loadFile = automerge.load(newCodeArr);
-    
-    const changesArray = [];
-    const parsedChanges = JSON.parse(changes); 
-    const changesParsedValues = Object.values(parsedChanges[0]);
-    const newChangesArr = new Uint8Array(changesParsedValues);
-    changesArray.push(newChangesArr)
-
-    // Testing -- Why is returning empty object ? Shoudnt return a object with changes ?
-    let loadFile1 = automerge.load(newChangesArr);
-    console.log(loadFile1) 
-    
-    loadFile = automerge.applyChanges(loadFile, changesArray);
-    
-    const savedChanges = automerge.save(loadFile[0]);
-    
-
-    let updateFileText = await RoomModel.findOneAndUpdate({
-      namespaceId: namespaceId,
-      "files.filename": filename,
-    }, { text: savedChanges } );
-
-    await updateFileText.save();
-
-    io.of(namespaceId).to(filename).except(socketId).emit(SocketEvents.SERVER_UPDATE_CODE, {
-      changes: JSON.stringify(changes), 
-      startIdx,
-      changeLength
+          client.hset(namespaceId, filename, JSON.stringify(savedChanges) );
+          
+          io.of(namespaceId).to(filename).except(socketId).emit(SocketEvents.SERVER_UPDATE_CODE, {
+            changes: JSON.stringify(changes), // TODO -> Remove .stringfy and in client remove douple .parse
+            startIdx,
+            changeLength
+          });
+      });
     });
 
   } catch (e) {
