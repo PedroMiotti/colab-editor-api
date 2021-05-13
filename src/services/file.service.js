@@ -26,6 +26,7 @@ exports.createFile = async (fileName, namespaceId, io) => {
     let new_file = {
       filename: fileName,
       text: JSON.stringify(automerge.save(doc)),
+      userCount: 0
     };
 
     room.files.push(new_file);
@@ -88,11 +89,13 @@ exports.joinFile = async (prevFile, currentFile, namespaceId, socketId, socket, 
     let socket_rooms = io.of(namespaceId).adapter.rooms;
     for (let [key, value] of socket_rooms) {
       if (key !== socketId && value.has(socketId)) {
-        socket.leave(prevFile);
+        await leaveFile(prevFile, socket, namespaceId)
       }
     }
 
     socket.join(currentFile);
+
+    await incrementUserCountInsideFile(namespaceId, currentFile);
 
     io.of(namespaceId).to(currentFile).emit(SocketEvents.SERVER_USER_JOINED_FILE, storedFileText);
 
@@ -139,7 +142,6 @@ exports.updateCode = async (data, socketId, namespaceId, socket, io) => {
   }
 };
 
-
 const getFileInMemory = (namespaceId, filename) => {
   let documentText = " ";
 
@@ -149,8 +151,8 @@ const getFileInMemory = (namespaceId, filename) => {
         if (err) reject(err);
 
         documentText = doc;
-
         resolve(documentText);
+
       });
     }).catch((err) => {
       reject(err);
@@ -159,4 +161,47 @@ const getFileInMemory = (namespaceId, filename) => {
   })
 
 }
+
+const leaveFile = async (filename, socket, namespaceId) => {
+  let room = await RoomModel.findOne({ namespaceId: namespaceId }).then(async (doc) => {
+    let fileIdx = doc.files.map(file => file.filename).indexOf(filename);
+    let userCount = doc.files[fileIdx].userCount;
+
+    console.log(userCount)
+    if (userCount >= 1) {
+      await getFileInMemory(namespaceId, filename).then((document) => {
+        doc.files[fileIdx].text = document;
+      });
+      
+      await redisClient.createConnection().then(async (client) => {
+        await client.hdel(namespaceId, filename);
+        doc.files[fileIdx].userCount -= 1;
+
+        doc.save()
+      }).catch((err) => {
+        console.log(err);
+      })
+    }
+  }).catch(err => {
+    console.log(err)
+    return;
+  });
+
+  socket.leave(filename);
+}
+
+const incrementUserCountInsideFile = async (namespaceId, filename) => {
+  let room = await RoomModel.findOne({ namespaceId: namespaceId }).then(doc => {
+    let fileIdx = doc.files.map(file => file.filename).indexOf(filename);
+    doc.files[fileIdx].userCount += 1;
+
+    doc.save()
+
+  }).catch(err => {
+    console.log(err)
+    return;
+  });
+
+}
+
 

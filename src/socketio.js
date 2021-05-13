@@ -8,7 +8,7 @@ const FileService = require("./services/file.service");
 
 
 module.exports = (http) => {
-  // Allowing CORS - Aparently it doenst get recognize it by express
+  // Allowing CORS - Aparently it doesnt get recognize it by express
   // REF - https://stackoverflow.com/questions/35713682/socket-io-gives-cors-error-even-if-i-allowed-cors-it-on-server
   const options = {
     cors: true,
