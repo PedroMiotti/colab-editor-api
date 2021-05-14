@@ -69,6 +69,7 @@ exports.joinFile = async (prevFile, currentFile, namespaceId, socketId, socket, 
 
       }).catch((err) => {
         console.log(err);
+        
         return;
       });
 
@@ -89,7 +90,7 @@ exports.joinFile = async (prevFile, currentFile, namespaceId, socketId, socket, 
     let socket_rooms = io.of(namespaceId).adapter.rooms;
     for (let [key, value] of socket_rooms) {
       if (key !== socketId && value.has(socketId)) {
-        await leaveFile(prevFile, socket, namespaceId)
+        await this.leaveFile(prevFile, socket, namespaceId)
       }
     }
 
@@ -128,7 +129,7 @@ exports.updateCode = async (data, socketId, namespaceId, socket, io) => {
         client.hset(namespaceId, filename, JSON.stringify(savedChanges));
 
         io.of(namespaceId).to(filename).except(socketId).emit(SocketEvents.SERVER_UPDATE_CODE, {
-          changes: JSON.stringify(changes), // TODO -> Remove .stringfy and in client remove douple .parse
+          changes: changes,
           startIdx,
           changeLength,
         });
@@ -141,6 +142,50 @@ exports.updateCode = async (data, socketId, namespaceId, socket, io) => {
     console.log(e);
   }
 };
+
+
+exports.deleteHashFromMemory = async (namespaceId) => {
+  await redisClient.createConnection().then(async (client) => {
+    await client.del(namespaceId);
+    
+  }).catch((err) => {
+    console.log(err);
+  })
+}
+
+exports.leaveFile = async (filename, socket, namespaceId) => {
+  let room = await RoomModel.findOne({ namespaceId: namespaceId }).then(async (doc) => {
+    let fileIdx = doc.files.map(file => file.filename).indexOf(filename);
+    let userCount = doc.files[fileIdx].userCount;
+
+    if (userCount == 1) {
+      await getFileInMemory(namespaceId, filename).then((document) => {
+        doc.files[fileIdx].text = document;
+      });
+
+      doc.files[fileIdx].userCount = doc.files[fileIdx].userCount - 1;
+
+      console.log("- " + doc.files[fileIdx].userCount)
+      
+      await redisClient.createConnection().then(async (client) => {
+        await client.hdel(namespaceId, filename);
+        
+      }).catch((err) => {
+        console.log(err);
+      })
+
+      await doc.save();
+
+    }
+  }).catch(err => {
+    console.log(err)
+    return;
+  });
+  
+
+  socket.leave(filename);
+}
+
 
 const getFileInMemory = (namespaceId, filename) => {
   let documentText = " ";
@@ -159,43 +204,15 @@ const getFileInMemory = (namespaceId, filename) => {
     })
 
   })
-
-}
-
-const leaveFile = async (filename, socket, namespaceId) => {
-  let room = await RoomModel.findOne({ namespaceId: namespaceId }).then(async (doc) => {
-    let fileIdx = doc.files.map(file => file.filename).indexOf(filename);
-    let userCount = doc.files[fileIdx].userCount;
-
-    console.log(userCount)
-    if (userCount >= 1) {
-      await getFileInMemory(namespaceId, filename).then((document) => {
-        doc.files[fileIdx].text = document;
-      });
-      
-      await redisClient.createConnection().then(async (client) => {
-        await client.hdel(namespaceId, filename);
-        doc.files[fileIdx].userCount -= 1;
-
-        doc.save()
-      }).catch((err) => {
-        console.log(err);
-      })
-    }
-  }).catch(err => {
-    console.log(err)
-    return;
-  });
-
-  socket.leave(filename);
 }
 
 const incrementUserCountInsideFile = async (namespaceId, filename) => {
-  let room = await RoomModel.findOne({ namespaceId: namespaceId }).then(doc => {
+  let room = await RoomModel.findOne({ namespaceId: namespaceId }).then(async (doc) => {
     let fileIdx = doc.files.map(file => file.filename).indexOf(filename);
-    doc.files[fileIdx].userCount += 1;
+    console.log("+ " + doc.files[fileIdx].userCount)
+    doc.files[fileIdx].userCount = doc.files[fileIdx].userCount + 1;
 
-    doc.save()
+    await doc.save();
 
   }).catch(err => {
     console.log(err)
@@ -203,5 +220,3 @@ const incrementUserCountInsideFile = async (namespaceId, filename) => {
   });
 
 }
-
-

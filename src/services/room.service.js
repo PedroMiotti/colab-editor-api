@@ -2,6 +2,9 @@ const SocketEvents = require("../constants/socketEvents");
 
 const { RoomModel } = require("../models/index");
 
+const FileService = require('./file.service');
+
+
 exports.joinRoom = async (namespaceId, socketId, username, io, socket) => {
   try {
     let room = await RoomModel.findOne({ namespaceId: namespaceId });
@@ -58,6 +61,38 @@ exports.createRoom = async (namespaceId, socketId, username, io, socket) => {
     console.log(e);
   }
 };
+
+exports.leaveRoom = async (namespaceId, socketId, io, socket) => {
+  // Check if user is inside a file
+  let socket_rooms = io.of(namespaceId).adapter.rooms;
+  for (let [key, value] of socket_rooms) {
+    if (key !== socketId && value.has(socketId)) {
+      console.log(key);
+      await FileService.leaveFile(key, socket, namespaceId)
+    }
+  }
+
+  let room = await RoomModel.findOne({ namespaceId: namespaceId }).then(async (user) => {
+    let userIdx = user.users.map((user) => user.socketId).indexOf(socketId);
+    user.users.splice(userIdx, 1);
+
+    await user.save();
+
+    return user;
+
+  }).catch((err) => {
+    console.log(err);
+    
+    return;
+  });
+
+  if(room.users.length === 0){
+    await RoomModel.deleteOne({ namespaceId: namespaceId });
+    await FileService.deleteHashFromMemory(namespaceId);
+  }
+
+  io.of(namespaceId).emit(SocketEvents.SERVER_USER_LEFT, { room });
+}
 
 exports.checkForExistingRoom = async (namespaceId) => {
   try {

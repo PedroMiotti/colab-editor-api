@@ -12,7 +12,7 @@ module.exports = {
   SERVER_UPDATE_USER: 'update:user',
   SERVER_UPDATE_FILES: 'update:files',
   SERVER_USER_JOINED_FILE: 'user-joined:file',
-  SERVER_UPDATE_CODE: 'realtime:code'
-
+  SERVER_UPDATE_CODE: 'realtime:code',
+  SERVER_USER_LEFT: 'user-left:room'
 
 };
