@@ -10,6 +10,8 @@ const cors = require("cors");
 const helmet = require("helmet");
 // Body-parser
 const bodyParser = require('body-parser')
+// .env
+require('dotenv').config();
 //Routes
 const RoomRoute = require('./routes/api/room.js');
 const FileRoute = require('./routes/api/file.js');

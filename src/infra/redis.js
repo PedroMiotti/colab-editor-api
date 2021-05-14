@@ -1,14 +1,14 @@
 const redis = require("redis");
 
 require('bluebird').promisifyAll(redis);
+require('dotenv').config();
 
-// TODO -> Use env variables
 module.exports = {
   createConnection: () => {
     return new Promise((resolve, reject) => {
       const client = redis.createClient({
-        host: '127.0.0.1',
-        port: 6379
+        host: process.env.REDIS_URI,
+        port: process.env.REDIS_PORT
     });
       client.on("connect", () => {
         resolve(client);
