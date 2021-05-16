@@ -35,20 +35,23 @@ exports.joinRoom = async (namespaceId, socketId, username, io, socket) => {
 
 exports.createRoom = async (namespaceId, socketId, username, io, socket) => {
   try {
-    let new_room = new RoomModel({
+    let room = new RoomModel({
       namespaceId: namespaceId,
       users: { username: username, socketId: socketId, isHost: true },
     });
 
-    await new_room.save()
-      .then((room) => {
-        return room;
+    await room.save()
+      .then((new_room) => {
+        return new_room;
       })
       .catch((e) => {
         console.log(e);
       });
 
-    let userId = new_room.users[0]._id;
+
+    io.of(namespaceId).emit(SocketEvents.SERVER_UPDATE_ROOM, { room });
+
+    let userId = room.users[0]._id;
 
     io.of(namespaceId).to(socketId).emit(SocketEvents.SERVER_UPDATE_USER, {
       userId: userId,
