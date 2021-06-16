@@ -70,31 +70,32 @@ exports.leaveRoom = async (namespaceId, socketId, io, socket) => {
   let socket_rooms = io.of(namespaceId).adapter.rooms;
   for (let [key, value] of socket_rooms) {
     if (key !== socketId && value.has(socketId)) {
-      console.log(key);
       await FileService.leaveFile(key, socket, namespaceId)
     }
   }
 
   let room = await RoomModel.findOne({ namespaceId: namespaceId }).then(async (user) => {
-    let userIdx = user.users.map((user) => user.socketId).indexOf(socketId);
+    let userIdx = user.users.map((user) => user.socketId).indexOf(socketId)
+
+    const userLeftInfo = user.users[userIdx];
+
     user.users.splice(userIdx, 1);
 
     await user.save();
 
-    return user;
+    return [user, userLeftInfo];
 
   }).catch((err) => {
     console.log(err);
-    
-    return;
+    return null;
   });
 
-  if(room.users.length === 0){
+  if(room[0].users.length === 0){
     await RoomModel.deleteOne({ namespaceId: namespaceId });
     await FileService.deleteHashFromMemory(namespaceId);
   }
 
-  io.of(namespaceId).emit(SocketEvents.SERVER_USER_LEFT, { room });
+  io.of(namespaceId).emit(SocketEvents.SERVER_USER_LEFT, { room: room[0], userLeft: room[1] });
 }
 
 exports.checkForExistingRoom = async (namespaceId) => {

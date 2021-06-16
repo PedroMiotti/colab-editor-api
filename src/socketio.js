@@ -35,7 +35,9 @@ module.exports = (http) => {
 
     socket.on(SocketEvents.CLIENT_UPDATE_CODE, async (data) => { await FileService.updateCode(data, socket.id, namespace_id, socket, io ) });
 
-    socket.on(SocketEvents.DISCONNECT, async (data) => { await RoomService.leaveRoom(namespace_id, socket.id, io, socket) });
+    socket.on(SocketEvents.CLIENT_USER_LEFT, async () => { await RoomService.leaveRoom(namespace_id, socket.id, io, socket) });
+
+    socket.on(SocketEvents.DISCONNECT, async () => { await RoomService.leaveRoom(namespace_id, socket.id, io, socket) });
   });
 
   return io;

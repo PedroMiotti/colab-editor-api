@@ -7,6 +7,7 @@ module.exports = {
   CLIENT_CREATE_FILE: 'create:file',
   CLIENT_JOIN_FILE: 'join:file',
   CLIENT_UPDATE_CODE: 'update:code',
+  CLIENT_USER_LEFT: 'user-left:room',
 
   SERVER_UPDATE_ROOM: 'update:room',
   SERVER_UPDATE_USER: 'update:user',
