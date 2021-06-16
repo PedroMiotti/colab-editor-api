@@ -11,13 +11,13 @@ router.get("/join/:nspId/:username", async (req, res) => {
   try{
     let room_exists = await RoomService.checkForExistingRoom(namespaceId);
 
-    let username_exists = await RoomService.checkForExistingUsername(username);
+    let username_exists = await RoomService.checkForExistingUsername(namespaceId, username);
 
-    if(!room_exists){
+    if(room_exists.length === 0){
       return res.status(400).send("Essa sala não existe")
     }
 
-    if(!username_exists){
+    if(!(username_exists === -1)){
       return res.status(400).send("Esse nome de usuario já está em uso nessa sala");
     }
 

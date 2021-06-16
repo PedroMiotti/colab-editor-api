@@ -113,12 +113,11 @@ exports.checkForExistingRoom = async (namespaceId) => {
 
 exports.checkForExistingUsername = async (namespaceId, username) => {
   try {
-    let user = await RoomModel.find({
-      namespaceId: "/" + namespaceId.toString(),
-      "users.username": username,
-    });
-
-    return user;
+    return await RoomModel.findOne({namespaceId: "/" + namespaceId.toString()})
+        .then(async (room) => {
+          let userFound = room.users.map(user => user.username).indexOf(username);
+          return userFound;
+        });
 
   } catch (e) {
     console.log(e);
