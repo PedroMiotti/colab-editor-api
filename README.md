@@ -5,11 +5,8 @@
 </p>
 
 <p align="center">
-
- <a href="https://github.com/adarshaacharya/CodeTreats/blob/master/LICENSE" target="_blank">
 <img alt="License: MIT" src="https://img.shields.io/github/license/adarshaacharya/CodeTreats" />
-</a>
-
+<img alt="License: MIT" src="https://img.shields.io/github/license/adarshaacharya/CodeTreats" />
 </p>
 
 <h4 align="center">
