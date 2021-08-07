@@ -6,7 +6,7 @@ const redisClient = require("../infra/redis");
 
 const automerge = require("automerge");
 
-const DEFAULT_PROGRAM = "// Insert code here";
+const DEFAULT_PROGRAM = "// code here";
 
 exports.createFile = async (fileName, namespaceId, io) => {
   try {
