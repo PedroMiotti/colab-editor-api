@@ -1,6 +1,6 @@
 <p align="center">
 <a href="">
-<img src=".github/img/techpot-colab-logo.png" alt="Logo" />
+<img src=".github/img/techpot-colab-logo.png" alt="Logo techpot-colab" />
 </a>
 </p>
 
